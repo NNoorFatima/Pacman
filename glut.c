@@ -3,16 +3,25 @@
 #include <cstdlib>  
 #include <ctime>   
 #include <cmath>
-
-// Define the grid size
+#include <thread>
+#include <array>
+#include<mutex>
+	// Define the grid size
 	const int gridWidth = 15;
 	const int gridHeight = 15;
 	
-// Initial square position and size
+	// Initial square position and size
 	float x = 20.0f;
 	float y = 20.0f;
 	float side = 20.0f;
-	
+struct Ghost {
+int x, y;
+};
+
+	std::array<Ghost, 4> ghosts = {{{7, 5}, {7, 6}, {7, 7}, {7, 8}}};
+	std::mutex ghostMutex;
+	bool running = true;
+
 // Maze configuration
 bool maze[gridHeight][gridWidth] = {
     {0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0},	//1
@@ -33,9 +42,9 @@ bool maze[gridHeight][gridWidth] = {
 };
 
 struct {
-    int x = 6; // initial x position
-    int y = 3; // initial y position
-} cherry;
+    int x = 7; // initial x position
+    int y = 10; // initial y position
+} pacman;
 // Function to draw a circle
 void drawCircle(float cx, float cy, float r, int num_segments) {
     glBegin(GL_POLYGON);
@@ -47,11 +56,55 @@ void drawCircle(float cx, float cy, float r, int num_segments) {
     }
     glEnd();
 }
-void drawCherry() {
-    glColor3f(1.0f, 0.0f, 0.0f); // Set cherry color to red
-    float cherryX = cherry.x * 20 + 10; // Calculate pixel x position from grid position
-    float cherryY = cherry.y * 20 + 10; // Calculate pixel y position from grid position
-    drawCircle(cherryX, cherryY, 10, 20); // Draw cherry as a circle
+
+void drawPacman() {
+    glColor3f(1.0f, 1.0f, 0.0f); // Set Pacman color to yellow
+    float pacmanX = pacman.x * 20 + 10; // Calculate pixel x position from grid position
+    float pacmanY = pacman.y * 20 + 10; // Calculate pixel y position from grid position
+    drawCircle(pacmanX, pacmanY, 10, 20); // Draw 
+}
+
+
+
+void moveGhost(int index) {
+    while (running) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(500)); // Delay between moves
+        int direction = std::rand() % 4; // Random direction
+
+        int dx = 0, dy = 0;
+        switch (direction) {
+            case 0: dx = 1;  break; // Right
+            case 1: dx = -1; break; // Left
+            case 2: dy = 1;  break; // Down
+            case 3: dy = -1; break; // Up
+        }
+
+        std::lock_guard<std::mutex> lock(ghostMutex);
+        int newX = (ghosts[index].x + dx + gridWidth) % gridWidth;
+        int newY = (ghosts[index].y + dy + gridHeight) % gridHeight;
+        if (!maze[newY][newX]) { // Check if the new position is not a wall
+            ghosts[index].x = newX;
+            ghosts[index].y = newY;
+        }
+    }
+}
+void drawGhosts() {
+    // Define the colors for the ghosts
+    std::array<std::tuple<float, float, float>, 4> colors = {
+        std::make_tuple(1.0f, 0.5f, 0.0f), // Orange
+        std::make_tuple(0.0f, 0.0f, 1.0f), // Blue
+        std::make_tuple(1.0f, 0.0f, 0.0f), // Red
+        std::make_tuple(1.0f, 0.5f, 0.8f)  // Pink
+    };
+
+    std::lock_guard<std::mutex> lock(ghostMutex);
+    for (int i = 0; i < ghosts.size(); ++i) {
+        auto [r, g, b] = colors[i];
+        glColor3f(r, g, b); // Set the color for each ghost
+        float ghostX = ghosts[i].x * 20 + 10;
+        float ghostY = ghosts[i].y * 20 + 10;
+        drawCircle(ghostX, ghostY, 10, 20); // Draw ghost as a circle
+    }
 }
 
 
@@ -59,7 +112,8 @@ void display() {
     glClear(GL_COLOR_BUFFER_BIT);
     glLoadIdentity();
 
-    // Define the size of each block and pellet
+    // Existing code to draw walls and pellets
+// Define the size of each block and pellet
     float blockSize = 20.0f; // Size of each block in the grid
 
     // Draw maze walls
@@ -89,15 +143,15 @@ void display() {
         }
     }
     glEnd();
- drawCherry();
+    drawPacman(); // Draw pacman
+    drawGhosts(); // Draw ghosts
+
     glutSwapBuffers();
 }
 
-
-
 void keyboard(int key, int xx, int yy) {
-    int nextX = cherry.x;
-    int nextY = cherry.y;
+    int nextX = pacman.x;
+    int nextY = pacman.y;
 
     switch (key) {
         case GLUT_KEY_RIGHT:
@@ -114,11 +168,18 @@ void keyboard(int key, int xx, int yy) {
             break;
     }
 
-    // Check for boundaries and walls before updating the position
-    if (nextX >= 0 && nextX < gridWidth && nextY >= 0 && nextY < gridHeight && !maze[nextY][nextX]) {
-        cherry.x = nextX;
-        cherry.y = nextY;
+	///ye wrap around envirmnment hao
+    if (nextY == 6 && nextX < 0) {  
+        nextX = 14; 
+    } else if (nextY == 6 && nextX >= 14) {  
+        nextX = 0;
+    } else if (nextX < 0 || nextX >= gridWidth || nextY < 0 || nextY >= gridHeight || maze[nextY][nextX]) {
+       
+        return; 
     }
+
+    pacman.x = nextX;
+    pacman.y = nextY;
 
     glutPostRedisplay();
 }
@@ -131,10 +192,14 @@ glLoadIdentity();
 gluOrtho2D(0, 300, 300, 0);
 glMatrixMode(GL_MODELVIEW);
 }
+int main(int argc, char** argv) {
+    std::srand(std::time(0)); // Seed random number generator
+    std::array<std::thread, 4> ghostThreads;
+    for (int i = 0; i < ghostThreads.size(); ++i) {
+        ghostThreads[i] = std::thread(moveGhost, i);
+    }
 
-int main(int argc, char** argv) 
-{
-    glutInit(&argc, argv);
+  glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
     glutInitWindowSize(600, 400);
     glutInitWindowPosition(100, 100);
@@ -143,6 +208,12 @@ int main(int argc, char** argv)
     glutDisplayFunc(display);
     glutSpecialFunc(keyboard);
     glutMainLoop();
+    running = false; // Stop threads after exiting the main loop
+
+    for (auto& thread : ghostThreads) {
+        thread.join(); // Wait for all threads to finish
+    }
+
     return 0;
 }
 
