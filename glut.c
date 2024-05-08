@@ -12,8 +12,6 @@
 #define GRID_HEIGHT 15
 sem_t ghostSemaphore;
 
-int key=1;
-int permit=1;
 // Initial square position and size
 float x = 20.0f;
 float y = 20.0f;
@@ -211,7 +209,9 @@ void initOpenGL() {
     glLoadIdentity();
     gluOrtho2D(0, 300, 300, 0);
     glMatrixMode(GL_MODELVIEW);
+   
 }
+//=====================================================================================
 pthread_mutex_t menuMutex = PTHREAD_MUTEX_INITIALIZER;
 void menu(int value) {
     switch (value) {
@@ -252,7 +252,8 @@ void* uithreadfunc(void* arg)
 int main(int argc, char** argv) {
     
 
-	
+
+
    
     srand(time(0)); // Seed random number generator
 
@@ -266,21 +267,18 @@ int main(int argc, char** argv) {
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
     glutInitWindowSize(600,500);
+    
     glutInitWindowPosition(100, 100);
     glutCreateWindow("Pacman");
- 	initOpenGL();
+ 
+    initOpenGL();
     glutDisplayFunc(display);
     glutSpecialFunc(keyboard);
-    
     
     pthread_t uithread;
     pthread_mutex_lock(&menuMutex);
     pthread_create(&uithread,NULL,&uithreadfunc,NULL);
     pthread_mutex_unlock(&menuMutex);
-
-
-  
-		
     glutMainLoop();
     
     running = false; // Stop threads after exiting the main loop
