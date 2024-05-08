@@ -11,7 +11,7 @@
 #define GRID_WIDTH 15
 #define GRID_HEIGHT 15
 sem_t ghostSemaphore;
-
+bool menuactive=false;
 // Initial square position and size
 float x = 20.0f;
 float y = 20.0f;
@@ -132,6 +132,12 @@ void display() {
     glClear(GL_COLOR_BUFFER_BIT);
     glLoadIdentity();
 
+
+	if(menuactive)
+	{
+		glutSwapBuffers();
+		return;
+	}
     // Existing code to draw walls and pellets
     float wallThickness=1.0f;
     float blockSize = 20.0f; // Size of each block in the grid
@@ -211,37 +217,108 @@ void initOpenGL() {
     glMatrixMode(GL_MODELVIEW);
    
 }
+
 //=====================================================================================
 pthread_mutex_t menuMutex = PTHREAD_MUTEX_INITIALIZER;
+// Function to display rules
+void displayRules() {
+    glClear(GL_COLOR_BUFFER_BIT);
+    glLoadIdentity();
+
+    // Set the color for the text (white in this case)
+    glColor3f(0.90f, 0.80f, 0.95f);
+
+	int windowWidth = glutGet(GLUT_WINDOW_WIDTH);
+    int windowHeight = glutGet(GLUT_WINDOW_HEIGHT);
+    int textWidth = 200; // Adjust as needed
+    int textHeight = 20; // Adjust as needed
+    int x = (windowWidth - textWidth) / 2-30; // Center horizontally
+    int y = (windowHeight - textHeight)/2 +50; // 10 pixels from the top
+
+   
+    glRasterPos2i(x, y); // Set the raster position
+    char text[] = "Welcome to Pacman! "; // Change this to your actual rules text
+	char text2[] = "1. Eat pellets and avoid ghosts.";
+    char text3[] = "2. Use arrow keys to move.";
+    char text4[] = "3. You have three lives:)";
+    // Loop through the characters in the text and draw them
+    for (int i = 0; text[i] != '\0'; i++) {
+        glutBitmapCharacter( GLUT_BITMAP_TIMES_ROMAN_24 , text[i]);
+    }
+	
+	y -= textHeight + 5; // Adjust the vertical spacing as needed
+
+    glRasterPos2i(x, y); // Set the raster position for the second line
+    for (int i = 0; text2[i] != '\0'; i++) {
+        glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, text2[i]);
+    }
+	//(0.01f, 0.32f, 0.14f);
+    // Move to the next line
+    y -= textHeight + 5; // Adjust the vertical spacing as needed
+
+    glRasterPos2i(x, y); // Set the raster position for the third line
+    for (int i = 0; text3[i] != '\0'; i++) {
+        glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, text3[i]);
+    }
+    
+    y -= textHeight + 5; // Adjust the vertical spacing as needed
+
+    glRasterPos2i(x, y); // Set the raster position for the third line
+    for (int i = 0; text4[i] != '\0'; i++) {
+        glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, text4[i]);
+    }
+
+	
+    glutSwapBuffers();
+}
+
+void reshapeRules(int width, int height) {
+    // Set viewport and projection matrix
+    glViewport(0, 0, width, height);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluOrtho2D(0, width, 0, height);
+    glMatrixMode(GL_MODELVIEW);
+}
 void menu(int value) {
     switch (value) {
+       // case 1:
+         //   printf("Resume game\n");
+           // menuactive=false;
+           // break;
         case 1:
-            printf("Resume game\n");
-            break;
-        case 2:
             printf("Exit game\n");
             exit(0);
             break;
-        case 3:
+        case 2:
             printf("Check Score\n");
          //   exit(0);
             break;
-		case 4:
+		case 3:
             printf("Rules\n");
           //  exit(0);
+         //   rulesWindowActive = true;
+            glutInitWindowSize(400, 400);
+            glutInitWindowPosition(100, 100);
+            glutCreateWindow("Game Rules");
+            glutDisplayFunc(displayRules);
+            glutReshapeFunc(reshapeRules);
+            break;
             break;
     }
 }
+
+
 
 //=============
 void* uithreadfunc(void* arg)
 {
 	
     int menu_id = glutCreateMenu(menu);
-    glutAddMenuEntry("Resume Game", 1);
-    glutAddMenuEntry("Exit Game", 2);
-    glutAddMenuEntry("Check Score", 3);
-    glutAddMenuEntry("Rules", 4);
+  //  glutAddMenuEntry("Resume Game", 1);
+    glutAddMenuEntry("Exit Game", 1);
+    glutAddMenuEntry("Check Score", 2);
+    glutAddMenuEntry("Rules", 3);
     glutAttachMenu(GLUT_RIGHT_BUTTON);
    
 
