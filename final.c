@@ -17,6 +17,7 @@
 #define GRID_HEIGHT 15
 #define NUM_SPEED_BOOSTS 2
 sem_t speedBoosts;
+sem_t fastGhost;
 // Mutex for printing to avoid garbling in stdout
 pthread_mutex_t print_mutex;
 
@@ -41,7 +42,7 @@ struct Ghost ghosts[NUM_GHOSTS] = {
     {7, 5},
     {7, 6},
     {6, 6},
-    {3, 14}
+    {9, 6}
     };
 
 pthread_mutex_t ghostMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -51,7 +52,7 @@ int lives = 3;
 
 // Maze configuration
 int maze[GRID_HEIGHT][GRID_WIDTH] = {
-    {0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0}, //1
+    {0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0}, //1
     {0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0}, //2
     {2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}, //3
     {0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0}, //4
@@ -65,7 +66,7 @@ int maze[GRID_HEIGHT][GRID_WIDTH] = {
     {1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1}, //12
     {2, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 2}, //13
     {0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0}, //14
-    {0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, //15
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, //15
 };
 
 struct
@@ -75,7 +76,7 @@ struct
 } pacman = {7, 10}; // initial x and y position
 
 //=======================================================================================
-void drawSpeedBooster() {
+/*void drawSpeedBooster() {
     // Check if a speed booster is present in the maze
     bool speedBoosterExists = false;
     for (int i = 0; i < GRID_HEIGHT; ++i) {
@@ -115,7 +116,7 @@ void drawSpeedBooster() {
             }
         }
     }
-}
+}*/
 
 //=======================================================================================
 // Function to draw a circle
@@ -190,16 +191,15 @@ void* fastGhostRoutine(int id) {
         pthread_mutex_unlock(&print_mutex);
 
         // Move faster
-        usleep(250000); // Reduced delay for fast move
+        usleep(250000); 
 
-        // Release the speed boost
         sem_post(&speedBoosts);
 
         pthread_mutex_lock(&print_mutex);
         printf("Fast Ghost %d has released the speed boost.\n", ghost_id);
         pthread_mutex_unlock(&print_mutex);
 
-        // Regular move logic (same as in moveGhost function)
+        // (same as in moveGhost function)
         int direction = rand() % 4; // Random direction
         int dx = 0, dy = 0;
         switch (direction) {
@@ -209,21 +209,87 @@ void* fastGhostRoutine(int id) {
             case 3: dy = -2; break; // Up
         }
 
-}
+	}
     return NULL;
 }
+//==============================================
+bool canBeFast(int index)
+{
+	//if((pacman.x == 12 && pacman.y == 0) || (pacman.x == 3 && pacman.y ==14) ||(ghosts[index].x ==12 && ghosts[index].y== 0) ||(ghosts[index].x == 3 && ghosts[index].y == 14))
+		return 1;
+	//return 0;
+	
 
+}
+void increaseSpeed(int index)
+{
+
+	while (ghostsVulnerable) {
+		usleep(5000); // Determines speed of the ghosts
+		printf("the val: %d\n",index);   
+		int direction = rand() % 4; // Random direction
+		//bool isVulnerable = ghostsVulnerable;
+   
+        int dx = 0, dy = 0;	//positions
+        switch (direction) {
+            case 0: dx = 2;  break; // Right
+            case 1: dx = -2; break; // Left
+            case 2: dy = 2;  break; // Down
+            case 3: dy = -2; break; // Up
+        }
+        
+       // printf("sf");
+        sem_wait(&ghostSemaphore);
+        //13--12,0
+        //3,14
+
+        int newX = (ghosts[index].x + dx + GRID_WIDTH) % GRID_WIDTH;
+        int newY = (ghosts[index].y + dy + GRID_HEIGHT) % GRID_HEIGHT;
+        if (!maze[newY][newX] && !isPositionOccupiedByAnotherGhost(newX, newY, index)) { // Check if new position is not a wall if wall no move
+            ghosts[index].x = newX;
+            ghosts[index].y = newY;
+        }
+        
+		
+        
+         if(ghosts[0].x==pacman.x && ghosts[0].y == pacman.y  || ghosts[1].x==pacman.x && ghosts[1].y == pacman.y  || ghosts[2].x==pacman.x && ghosts[2].y == pacman.y  || 
+         ghosts[3].x==pacman.x && ghosts[3].y == pacman.y  ){
+            if (ghostsVulnerable) {
+                score += 200;  // Pacman eats  ghost
+                ghosts[index].x = GHOST_HOUSE_X;
+                ghosts[index].y = GHOST_HOUSE_Y;
+            } else {
+                //ghost eat pacman
+                lives -= 1;  // lives decreaes
+                pacman.x = 7;  // back to start position 
+                pacman.y = 10;
+                if (lives <= 0) {
+                    running = false;  // Game over
+                    displayGameOver();  
+                    sem_post(&ghostSemaphore);
+                    break;  // Exit the loop
+                }
+            }
+        }
+        sem_post(&ghostSemaphore);
+		
+	}
+	sem_post(&fastGhost);
+}
+	
 //======================================================================================
 void moveGhost(int index)
 {
+	int val;
     while (running)
     {
     	int direction = rand() % 4; // Random direction
         bool isVulnerable = ghostsVulnerable;
         int dx = 0, dy = 0; 
-        usleep(500000); // Delay between moves (500 milliseconds)
+        usleep(500000); // speed decrease this to make faster
 	
-	
+		printf("main\n");
+	//	printf("the val: %d\n",index);   
 	    //positions
         switch (direction)
         {
@@ -241,6 +307,15 @@ void moveGhost(int index)
             break; // Up
         }
         sem_wait(&ghostSemaphore);
+        if(canBeFast(index)==1 && ghostsVulnerable == 1 &&  sem_trywait(&fastGhost) == 0)	//make two ghost faster 4th wala
+		{
+			//sem_wait(&fastGhost);
+			sem_post(&ghostSemaphore);
+			increaseSpeed(index);
+			continue;
+			///sem_post(&fastGhost);
+		
+		}
 
        
         int newX = (ghosts[index].x + dx + GRID_WIDTH) % GRID_WIDTH;
@@ -270,6 +345,7 @@ void moveGhost(int index)
                 {
                     running = false; 
                     displayGameOver(); 
+                    sem_post(&ghostSemaphore);
                     break;            
                 }
             }
@@ -283,10 +359,10 @@ void moveGhost(int index)
 //======================================================================================//
 void drawGhosts()
 {
-    // Define the colors for the ghosts
+    //colors 
     float colors[4][3] = {
         {1.0f, 0.5f, 0.0f}, // Orange
-        {0.56f, 0.0f, 1.0f}, // Blue
+        {0.56f, 0.0f, 1.0f}, // purple
         {1.0f, 0.0f, 0.0f}, // Red
         {1.0f, 0.5f, 0.8f}  // Pink
     };
@@ -328,11 +404,11 @@ void display() {
 
     // Draw maze walls
     float wallThickness = 1.0f;
-    float blockSize = 20.0f; // Size of each block in the grid
-    glColor3f(0.0f, 0.0f, 0.5f); // Blue walls
+    float blockSize = 20.0f; 
+    glColor3f(0.0f, 0.0f, 0.5f); // walls
     for (int i = 0; i < GRID_HEIGHT; ++i) {
         for (int j = 0; j < GRID_WIDTH; ++j) {
-            if (maze[i][j] == 1) { // If there's a wall, draw it
+            if (maze[i][j] == 1) { // 1 represents wall
                 glBegin(GL_QUADS);
                 glVertex2f(j * blockSize, i * blockSize);
                 glVertex2f((j + 1) * blockSize, i * blockSize);
@@ -358,13 +434,13 @@ void display() {
         }
     }
     
-    for (int i = 0; i < GRID_HEIGHT; ++i) {
+   /* for (int i = 0; i < GRID_HEIGHT; ++i) {
         for (int j = 0; j < GRID_WIDTH; ++j) {
            if (maze[i][j] == 3) { 
                 drawSpeedBooster();
             }
         }
-    }
+    }*/
     glEnd();
 
     drawPacman(); 
@@ -426,25 +502,25 @@ void keyboard(int key, int xx, int yy)
     // Check for yellow pellets
     if (maze[nextY][nextX] == 0)
     {
-        maze[nextY][nextX] = -1; // Mark the pellet as consumed
-        score += 10;             // Increment the score
+        maze[nextY][nextX] = -1; 
+        score += 10;             //Increment the score
     }
 
-    // Check for power pellets
+    //Check for red power pellets
     if (maze[nextY][nextX] == 2 && !powerPelletActive)
     {
-        maze[nextY][nextX] = -1; // Consume the power pellet
+        maze[nextY][nextX] = -1; 
         score += 50;
         sem_wait(&ghostSemaphore);
         ghostsVulnerable = true;
         powerPelletActive = true;
         sem_post(&ghostSemaphore);
-        glutTimerFunc(10000, resetVulnerability, 0); // 10 seconds of vulnerability
+        glutTimerFunc(10000, resetVulnerability, 0); // 10 seconds blue ghosts appear 
     }
   
     pacman.x = nextX;
     pacman.y = nextY;
-	drawSpeedBooster();
+	//drawBooster();
     glutPostRedisplay();
 }
 //=============================================================
@@ -563,7 +639,7 @@ int main(int argc, char **argv) {
 
 
 	sem_init(&ghostSemaphore, 0, 1);
-   // sem_init(&fastGhost, 0, 2);
+    sem_init(&fastGhost, 0, 2);
     sem_init(&speedBoosts, 0, NUM_SPEED_BOOSTS);
     
     pthread_mutex_init(&print_mutex, NULL);
@@ -578,10 +654,6 @@ int main(int argc, char **argv) {
     }
 
     
-
-    
- 
-
     glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
     glutInitWindowSize(600, 500);
@@ -608,7 +680,7 @@ int main(int argc, char **argv) {
    
 
     sem_destroy(&ghostSemaphore);
-    sem_destroy(&speedBoosts);
+    sem_destroy(&fastGhost);
     pthread_mutex_destroy(&print_mutex);
 
     return 0;
